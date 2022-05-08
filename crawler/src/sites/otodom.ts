@@ -104,6 +104,6 @@ export class OtodomCrawler extends SiteEntity {
 
     const pageConfig: PayloadType = JSON.parse(pageConfigString);
 
-    return pageConfig
+    return pageConfig;
   }
 }

@@ -90,7 +90,7 @@ export class OtodomCrawler extends SiteEntity {
       equipment: target.Equipment_types ?? [],
       extras: target.Extras_types ?? [],
       details: ad
-    }
+    };
 
     return new OtodomListingEntity(listing);
   }

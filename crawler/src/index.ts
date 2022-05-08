@@ -50,9 +50,14 @@ async function entryPoint (): Promise<void> {
   let referer: string | undefined;
 
   while (canQueryNextPage && crawledListings.size < maxResults) {
-    const { url, listings, pageConfig: { props: { pageProps: { tracking: { listing } } } } } = await crawler.otodom.fetchListings(EFetchMode.ALL_AT_ONCE, page, referer);
+    const { url, listings, pageConfig: { props: { pageProps: { tracking } } } } = await crawler.otodom.fetchListings(EFetchMode.ALL_AT_ONCE, page, referer);
 
-    console.log(`Fetched ${listings.length} result(s) from ${url} (page ${page}/${listing.page_count}). Total ${listing.result_count} results available.`);
+    if (typeof tracking === 'undefined') {
+      page += 1;
+      continue;
+    }
+
+    console.log(`Fetched ${listings.length} result(s) from ${url} (page ${page}/${tracking.listing.page_count}). Total ${tracking.listing.result_count} results available.`);
 
     await csv.writeRecords(
       listings
@@ -66,7 +71,7 @@ async function entryPoint (): Promise<void> {
 
     page += 1;
     referer = url;
-    canQueryNextPage = listing.page_nb < listing.page_count;
+    canQueryNextPage = tracking.listing.page_nb < tracking.listing.page_count;
 
     await sleep(1e3 + 1e3 * Math.random());
   }

@@ -22,6 +22,6 @@ export function fetchSequence<T>(items: Array<() => Promise<T>>): Promise<T[]> {
     );
 }
 
-export function sanitizeNumber(input: number, fallback: any = undefined): number | undefined {
+export function sanitizeNumber<T = any>(input: number, fallback: T = undefined): number | T {
   return Number.isNaN(input) ? fallback : input;
 }

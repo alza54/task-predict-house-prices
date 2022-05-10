@@ -12,6 +12,11 @@ async function sleep(ms: number) {
 }
 
 async function entryPoint (): Promise<void> {
+  const isAppendMode = process.argv[3] === 'append';
+  const startPage: number = /^\d+$/.test(process.argv[2] ?? '') ? Number.parseInt(process.argv[2], 10) : 1;
+
+  console.log(`Crawler started. Append mode ${isAppendMode ? 'enabled' : 'disabled'}. Starting with page ${startPage}.`);
+
   const crawler = { otodom: new OtodomCrawler() };
   const crawledListings = new Map<number, OtodomListingEntity>();
   const csv = createObjectCsvWriter({
@@ -37,16 +42,17 @@ async function entryPoint (): Promise<void> {
       'rooms',
       'square_meters',
       'equipment',
-      'extras'
+      'extras',
+      'construction_status'
     ].map(header => ({ id: header, title: header })),
     fieldDelimiter: ';',
-    append: false
+    append: isAppendMode
   });
 
   const maxResults = 500e3;
 
   let canQueryNextPage = true;
-  let page = 1;
+  let page = startPage;
   let referer: string | undefined;
 
   while (canQueryNextPage && crawledListings.size < maxResults) {

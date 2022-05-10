@@ -46,6 +46,7 @@ export interface IListing<PropertyType extends EPropertyType = EPropertyType, Cu
   square_meters: number;
   equipment: string[];
   extras: string[];
+  construction_status: string[];
 }
 
 export interface IOtodomListing extends IListing<EPropertyType.UNKNOWN> {
@@ -112,6 +113,10 @@ export class ListingEntity<
 
   get extras (): string[] {
     return this.data.extras;
+  }
+
+  get construction_status (): string[] {
+    return this.data.construction_status;
   }
 }
 

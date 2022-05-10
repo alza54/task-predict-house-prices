@@ -20,11 +20,15 @@ export class OtodomCrawler extends SiteEntity {
   ): Promise<{ listings: OtodomListingEntity[]; pageConfig: OtodomResults.PageConfig; url: string }> {
     const { listings: listingUrls, pageConfig, url } = await this.fetchListingUrls(page, referer);
 
-    const listings = fetchMode === EFetchMode.ALL_AT_ONCE
+    let listings = fetchMode === EFetchMode.ALL_AT_ONCE
       ? await Promise.all(listingUrls.map((listingUrl: string) => this.fetchListing(listingUrl)))
       : await fetchSequence(listingUrls.map((listingUrls: string) => () => this.fetchListing(listingUrls)));
 
-    return { listings, pageConfig, url };
+    const listingsFiltered: OtodomListingEntity[] = listings.filter(
+      (listing: OtodomListingEntity | undefined): listing is OtodomListingEntity => listing !== undefined
+    );
+
+    return { listings: listingsFiltered, pageConfig, url };
   }
 
   protected async fetchListingUrls(page?: number, referer: string = OtodomCrawler.listingsUrl): Promise<{ listings: string[], pageConfig: OtodomResults.PageConfig; url: string }> {
@@ -48,51 +52,64 @@ export class OtodomCrawler extends SiteEntity {
     }
   }
 
-  protected async fetchListing(url: string): Promise<OtodomListingEntity> {
-    this.debug('Fetching listing %s', url);
+  protected async fetchListing(url: string): Promise<OtodomListingEntity | undefined> {
+    try {
+      this.debug('Fetching listing %s', url);
 
-    const { body } = await this.httpClient.get(url);
+      const { body } = await this.httpClient.get(url);
 
-    const { props: { pageProps: { ad, ad: { id, location, breadcrumbs, target }, adTrackingData } } } = this.getPageConfig<OtodomListing.PageConfig>(body);
+      const { props: { pageProps: { ad, adTrackingData } } } = this.getPageConfig<OtodomListing.PageConfig>(body);
 
-    this.debug('Got response from %s', url);
+      this.debug('Got response from %s', url);
 
-    const listing: IOtodomListing = {
-      uri: url,
-      internal_id: id,
-      date_published: ad.dateCreated,
-      date_modified: ad.dateModified,
-      property_type: target.ProperType,
-      location: {
-        gps: {
-          lat: location.coordinates.latitude,
-          lng: location.coordinates.longitude
+      if (typeof ad === 'undefined' || typeof ad.target === 'undefined' || ad.target === null) {
+        return;
+      }
+
+      if (typeof adTrackingData === 'undefined' || adTrackingData === null) {
+        return;
+      }
+
+      const listing: IOtodomListing = {
+        uri: url,
+        internal_id: ad.id,
+        date_published: ad.dateCreated,
+        date_modified: ad.dateModified,
+        property_type: ad.target.ProperType,
+        location: {
+          gps: {
+            lat: ad.location.coordinates.latitude,
+            lng: ad.location.coordinates.longitude
+          },
+          city: adTrackingData.city_name,
+          region: adTrackingData.region_name,
+          subregion: adTrackingData.subregion_id,
+          address: ad.breadcrumbs
+            .find((breadcrumb: OtodomListing.Breadcrumb) => breadcrumb.url.includes('?locations'))
+            ?.label.replace('ul. ', ''),
+          floor: sanitizeNumber(Number.parseInt(ad.target.Floor_no?.[0]?.replace('floor_', ''), 10)),
+          floor_total: sanitizeNumber(Number.parseInt(ad.target.Building_floors_num, 10)),
+          build_year: sanitizeNumber(Number.parseInt(ad.target.Build_year, 10)) ?? 0,
+          has_lift: ad.additionalInformation
+            .find((field: OtodomListing.AdditionalInformation) => field.label === 'lift')
+            ?.values[0]?.slice(2) ?? 'n'
         },
-        city: adTrackingData.city_name,
-        region: adTrackingData.region_name,
-        subregion: adTrackingData.subregion_id,
-        address: breadcrumbs
-          .find((breadcrumb: OtodomListing.Breadcrumb) => breadcrumb.url.includes('?locations'))
-          ?.label.replace('ul. ', ''),
-        floor: sanitizeNumber(Number.parseInt(target.Floor_no?.[0]?.replace('floor_', ''), 10)),
-        floor_total: sanitizeNumber(Number.parseInt(target.Building_floors_num, 10)),
-        build_year: sanitizeNumber(Number.parseInt(target.Build_year, 10)) ?? 0,
-        has_lift: ad.additionalInformation
-          .find((field: OtodomListing.AdditionalInformation) => field.label === 'lift')
-          ?.values[0]?.slice(2) ?? 'n'
-      },
-      price: {
-        value: adTrackingData.ad_price,
-        currency: adTrackingData.price_currency as TCurrency
-      },
-      rooms: sanitizeNumber(Number.parseInt(target.Rooms_num?.[0] ?? '0', 10)) ?? 0,
-      square_meters: sanitizeNumber(Number.parseFloat(target?.Area ?? '0')) ?? 0,
-      equipment: target.Equipment_types ?? [],
-      extras: target.Extras_types ?? [],
-      details: ad
-    };
+        price: {
+          value: adTrackingData.ad_price,
+          currency: adTrackingData.price_currency as TCurrency
+        },
+        rooms: sanitizeNumber(Number.parseInt(ad.target.Rooms_num?.[0] ?? '0', 10)) ?? 0,
+        square_meters: sanitizeNumber(Number.parseFloat(ad.target?.Area ?? '0')) ?? 0,
+        equipment: ad.target.Equipment_types ?? [],
+        extras: ad.target.Extras_types ?? [],
+        construction_status: ad.target.Construction_status ?? [],
+        details: ad
+      };
 
-    return new OtodomListingEntity(listing);
+      return new OtodomListingEntity(listing);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   private getPageConfig<PayloadType>(body: string): PayloadType {

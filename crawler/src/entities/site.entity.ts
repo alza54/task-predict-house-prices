@@ -12,5 +12,5 @@ export abstract class SiteEntity extends WebEntity {
   public abstract fetchListings(fetchMode: EFetchMode, page?: number, referer?: string): Promise<{ listings: ListingEntity[] }>;
 
   protected abstract fetchListingUrls(page?: number, referer?: string): Promise<{ listings: string[] }>;
-  protected abstract fetchListing(url: string): Promise<ListingEntity>;
+  protected abstract fetchListing(url: string): Promise<ListingEntity | undefined>;
 }
